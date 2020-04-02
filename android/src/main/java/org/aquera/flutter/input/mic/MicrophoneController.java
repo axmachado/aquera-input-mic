@@ -17,6 +17,7 @@ public class MicrophoneController {
     private int audioEncoding;
     private int audioChannels;
     private int sampleRate;
+    private int divisor;
     private int audioBufferSize;
 
     private AudioRecord recorder;
@@ -26,6 +27,7 @@ public class MicrophoneController {
         audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
         audioChannels = AudioFormat.CHANNEL_IN_MONO;
         sampleRate = 8000;
+        divisor = 1;
         recorder = null;
         audioBufferSize = 0;
     }
@@ -77,6 +79,10 @@ public class MicrophoneController {
         }
 
         audioBufferSize = AudioRecord.getMinBufferSize(getSampleRate(), getAudioChannels(), getAudioEncoding());
+        if ((getSamplesPerBuffer() % getDivisor()) != 0) {
+            // ensure that the buffer size in samples is a multiple of the downsampling divisor.
+            audioBufferSize = ((getSamplesPerBuffer() / divisor) * divisor) * getBytesPerSample();
+        }
 
         AudioRecord.Builder recordBuilder = new AudioRecord.Builder();
         AudioFormat.Builder formatBuilder = new AudioFormat.Builder();
@@ -90,6 +96,11 @@ public class MicrophoneController {
         recordBuilder.setBufferSizeInBytes(audioBufferSize);
 
         this.recorder = recordBuilder.build();
+
+        int actualSampleRate = this.recorder.getSampleRate();
+        if (actualSampleRate != this.sampleRate) {
+            throw new MicrophoneError ("Sample Rate (" + this.getSampleRate() + "Hz) not supported");
+        }
 
         if (getAudioSource() == DartAudioSource.UNPROCESSED.getAndroidAudioSource()) {
             if (AutomaticGainControl.isAvailable()) {
@@ -225,4 +236,14 @@ public class MicrophoneController {
         return getAudioBufferSize() / getBytesPerSample();
     }
 
+    public int getDivisor() {
+        return divisor;
+    }
+
+    public void setDivisor(int divisor) {
+        if (divisor <= 0) {
+            divisor = 1;
+        }
+        this.divisor = divisor;
+    }
 }

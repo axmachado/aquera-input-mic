@@ -21,8 +21,44 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
 
     static final String[] setupMicrophoneArguments = { "source", "sampleRate", "channelConfig", "audioResolution"};
 
+    static final int[] RATES_8K = { 8000, 4000, 2666, 2000, 1600, 1333, 1142, 1000  };
+    static final int[] RATES_16K = { 16000, 5333, 3200, 2285 };
+    static final int[] RATES_44K = { 44100, 22050, 14700, 11025, 8820, 7350, 6300, 5512, 2756, 1838, 1102, 918 };
+
+    private MicrophoneController microphoneController;
+
+    public AqueraInputMicMethodHandler(MicrophoneController microphoneController) {
+        this.microphoneController = microphoneController;
+    }
+
+    protected boolean inArray(int[] array, int v) {
+        for (int x: array) {
+            if (v == x) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected int findSampleRate(int rate) {
+        if (inArray(RATES_8K, rate)) {
+            return 8000;
+        }
+        else if (inArray(RATES_16K,rate)) {
+            return 16000;
+        }
+        else if (inArray(RATES_44K,rate)) {
+            return 44100;
+        }
+        return -1;
+    }
+
+    protected int findDownsamplingDivisor(int rate, int actualRate) {
+        return actualRate / rate;
+    }
+
     /**
-     * Configure the microphon parameters
+     * Configure the microphone parameters
      *
      * @param call
      * @param result
@@ -35,15 +71,21 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
         }
 
         int source = v[0];
-        int sampleRate = v[1];
+        int sampleRate = findSampleRate(v[1]);
+        int divisor = findDownsamplingDivisor(v[1], sampleRate);
         int channelConfig = v[2];
         int audioResolution = v[3];
 
-        MicrophoneController controller = MicrophoneController.getInstance();
-        controller.setAudioSourceFromDart(source);
-        controller.setSampleRate(sampleRate);
-        controller.setAudioChannelsFromDart(channelConfig);
-        controller.setAudioEncodingFromDart(audioResolution);
+        if (sampleRate < 0) {
+            result.error("InvalidSampleRate", "The requested sample rate (" + v[1] + " Hz) is not supported", null);
+            return;
+        }
+
+        microphoneController.setAudioSourceFromDart(source);
+        microphoneController.setSampleRate(sampleRate);
+        microphoneController.setDivisor(divisor);
+        microphoneController.setAudioChannelsFromDart(channelConfig);
+        microphoneController.setAudioEncodingFromDart(audioResolution);
 
         result.success(null);
     }
@@ -55,9 +97,8 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      * @param result
      */
     protected void startRecording(MethodCall call, MethodChannel.Result result) {
-        MicrophoneController controller = MicrophoneController.getInstance();
         try {
-            controller.start();
+            microphoneController.start();
             result.success(null);
         } catch (MicrophoneError microphoneError) {
             result.error("MicrophoneError", microphoneError.getMessage(), null);
@@ -71,8 +112,7 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      * @param result
      */
     protected void stopRecording(MethodCall call, MethodChannel.Result result) {
-        MicrophoneController controller = MicrophoneController.getInstance();
-        controller.stop();
+        microphoneController.stop();
         result.success(null);
     }
 
@@ -83,8 +123,7 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      * @param result
      */
     protected void pauseRecording(MethodCall call, MethodChannel.Result result) {
-        MicrophoneController controller = MicrophoneController.getInstance();
-        controller.pause();
+        microphoneController.pause();
         result.success(null);
     }
 
@@ -95,8 +134,7 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      * @param result
      */
     protected void resumeRecording(MethodCall call, MethodChannel.Result result) {
-        MicrophoneController controller = MicrophoneController.getInstance();
-        controller.resume();
+        microphoneController.resume();
         result.success(null);
     }
 
@@ -107,8 +145,7 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      * @param result
      */
     protected void isRecording(MethodCall call, MethodChannel.Result result) {
-        MicrophoneController controller = MicrophoneController.getInstance();
-        boolean state = controller.isRecording();
+        boolean state = microphoneController.isRecording();
         result.success(state);
     }
 
@@ -119,8 +156,7 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      * @param result
      */
     protected void isActive(MethodCall call, MethodChannel.Result result) {
-        MicrophoneController controller = MicrophoneController.getInstance();
-        boolean state = controller.isActive();
+        boolean state = microphoneController.isActive();
         result.success(state);
     }
 
@@ -131,8 +167,7 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      * @param result
      */
     protected void isPaused(MethodCall call, MethodChannel.Result result) {
-        MicrophoneController controller = MicrophoneController.getInstance();
-        boolean state = controller.isPaused();
+        boolean state = microphoneController.isPaused();
         result.success(state);
     }
 

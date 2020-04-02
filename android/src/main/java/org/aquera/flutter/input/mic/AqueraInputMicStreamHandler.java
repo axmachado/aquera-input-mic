@@ -7,6 +7,8 @@ package org.aquera.flutter.input.mic;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 
+import java.util.Arrays;
+
 import io.flutter.plugin.common.EventChannel;
 
 /**
@@ -29,15 +31,14 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
      */
     private boolean listenerGone;
 
-
-    public AqueraInputMicStreamHandler() {
-        microphone = MicrophoneController.getInstance();
+    public AqueraInputMicStreamHandler(MicrophoneController microphoneController) {
+        microphone = microphoneController;
         listenerGone = true;
     }
 
     @Override
     public void onListen(Object arguments, EventChannel.EventSink events) {
-        this.eventSink = events;
+        this.eventSink = new MainThreadEventSink(events);
         listenerGone = false;
         new Thread(this).start();
     }
@@ -55,20 +56,39 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
      * render it as a signed short list.
      */
     protected void run_8bit() {
+        while (!microphone.isRecording()) {
+            try {
+                Thread.sleep(0);
+            } catch (InterruptedException e) {
+                return;
+            }
+        }
+
         int sample_count = microphone.getAudioBufferSize();
 
-        short[] result = new short[sample_count];
+        int[] result = new int[sample_count/microphone.getDivisor()];
         byte[] input = new byte[sample_count];
 
         while (!listenerGone) {
             if (!microphone.isRecording()) {
+                try {
+                    Thread.sleep(0);
+                } catch (InterruptedException e) {
+                    return;
+                }
                 continue;
             }
 
             microphone.getRecorder().read(input, 0, sample_count, AudioRecord.READ_BLOCKING);
 
-            for (int i=0; i < sample_count; ++i) {
-                result[i] = (short) (127 - (input[i] & 0x00ff));
+            int j = 0;
+            for (int i=0; i < sample_count; i+=microphone.getDivisor()) {
+                result[j] = 0;
+                for (int k = 0; k < microphone.getDivisor(); ++k) {
+                    result[j] += (127 - (input[i+k] & 0x00ff));
+                }
+                result[j] = (int) Math.round(result[j] * 1.0 / microphone.getDivisor());
+                j++;
             }
 
             eventSink.success(result);
@@ -81,16 +101,40 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
      * render it to the dart program.
      */
     protected void run_16bit() {
+        while (!microphone.isRecording()) {
+            try {
+                Thread.sleep(0);
+            } catch (InterruptedException e) {
+                return;
+            }
+        }
         int sample_count = microphone.getSamplesPerBuffer();
 
-        short[] result = new short[sample_count];
+        short[] input = new short[sample_count];
+        int[] result = new int[sample_count/microphone.getDivisor()];
 
         while (!listenerGone) {
             if (!microphone.isRecording()) {
+                try {
+                    Thread.sleep(0);
+                } catch (InterruptedException e) {
+                    return;
+                }
                 continue;
             }
 
-            microphone.getRecorder().read(result, 0, sample_count, AudioRecord.READ_BLOCKING);
+            microphone.getRecorder().read(input, 0, sample_count, AudioRecord.READ_BLOCKING);
+
+            int j = 0;
+            for (int i=0; i < sample_count; i+=microphone.getDivisor()) {
+                result[j] = 0;
+                for (int k = 0; k < microphone.getDivisor(); ++k) {
+                    result[j] += input[i+k];
+                }
+                result[j] = (int) Math.round(result[j] * 1.0 / microphone.getDivisor());
+                j++;
+            }
+
             eventSink.success(result);
         }
 

@@ -32,6 +32,13 @@ public class AqueraInputMicPlugin implements FlutterPlugin {
     private MethodChannel methodChannel;
     // EventChannel - communicate microphone events
     private EventChannel eventChannel;
+    // controlador do microfone
+    private MicrophoneController microphoneController;
+
+    public AqueraInputMicPlugin() {
+        super();
+        microphoneController = MicrophoneController.getInstance();
+    }
 
     /**
      * New Flutter interface - post flutter 1.12
@@ -42,9 +49,9 @@ public class AqueraInputMicPlugin implements FlutterPlugin {
     @Override
     public void onAttachedToEngine(@NonNull FlutterPluginBinding flutterPluginBinding) {
         methodChannel = new MethodChannel(flutterPluginBinding.getBinaryMessenger(), "org.aquera:input_mic:methods");
-        methodChannel.setMethodCallHandler(new AqueraInputMicMethodHandler());
+        methodChannel.setMethodCallHandler(new AqueraInputMicMethodHandler(microphoneController));
         eventChannel = new EventChannel(flutterPluginBinding.getBinaryMessenger(), "org.aquera:input_mic:events");
-        eventChannel.setStreamHandler(new AqueraInputMicStreamHandler());
+        eventChannel.setStreamHandler(new AqueraInputMicStreamHandler(microphoneController));
     }
 
     // This static function is optional and equivalent to onAttachedToEngine. It supports the old
@@ -64,10 +71,11 @@ public class AqueraInputMicPlugin implements FlutterPlugin {
      * @param registrar
      */
     public static void registerWith(Registrar registrar) {
+        final AqueraInputMicPlugin plugin = new AqueraInputMicPlugin();
         final MethodChannel channel = new MethodChannel(registrar.messenger(), "org.aquera:input_mic:method");
-        channel.setMethodCallHandler(new AqueraInputMicMethodHandler());
+        channel.setMethodCallHandler(new AqueraInputMicMethodHandler(plugin.microphoneController));
         final EventChannel evtChannel = new EventChannel(registrar.messenger(), "org.aquera:input_mic:events");
-        evtChannel.setStreamHandler(new AqueraInputMicStreamHandler());
+        evtChannel.setStreamHandler(new AqueraInputMicStreamHandler(plugin.microphoneController));
     }
 
     /**
@@ -76,7 +84,7 @@ public class AqueraInputMicPlugin implements FlutterPlugin {
      */
     @Override
     public void onDetachedFromEngine(@NonNull FlutterPluginBinding binding) {
-        MicrophoneController.getInstance().stop();
+        microphoneController.stop();
         methodChannel.setMethodCallHandler(null);
         eventChannel.setStreamHandler(null);
     }

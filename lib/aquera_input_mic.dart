@@ -7,7 +7,7 @@ import 'package:permission/permission.dart';
  * Configuration Options
  */
 
-// Audio source 
+// Audio source
 enum AudioSource {
   CURRENT,
   DEFAULT,
@@ -54,6 +54,8 @@ class AqueraInputMic {
   AudioResolution _audioResolution;
   int _sampleRate;
   bool _streaming;
+  StreamController<List<int>> _micStream;
+  StreamSubscription<dynamic> _eventStreamSubscription;
 
   // Event stream
   Stream<dynamic> _eventStream;
@@ -76,6 +78,8 @@ class AqueraInputMic {
     _audioResolution = AudioResolution.PCM_16BIT;
     _sampleRate = 8000; // 8KHz as default sample rate
     _streaming = false;
+    _micStream = new StreamController<List<int>>();
+    _eventStreamSubscription = null;
   }
 
   // getters
@@ -142,11 +146,8 @@ class AqueraInputMic {
     return version;
   }
 
-  Stream<List<int>> start(
-      {AudioSource audioSource: AudioSource.CURRENT,
-      int sampleRate: 0,
-      ChannelConfig channelConfig: ChannelConfig.CURRENT,
-      AudioResolution audioResolution: AudioResolution.CURRENT}) async* {
+  Future<void> _setupAndBackgroundStart(AudioSource audioSource, int sampleRate,
+      ChannelConfig channelConfig, AudioResolution audioResolution) async {
     if (streaming) {
       throw InvalidStateException("Already streaming");
     }
@@ -174,38 +175,58 @@ class AqueraInputMic {
             .index
       });
 
-      _eventStream = _eventChannel.receiveBroadcastStream();
+      if (_eventStream == null) {
+        _eventStream = _eventChannel.receiveBroadcastStream();
+      }
+      _eventStreamSubscription = _eventStream.listen((event) {
+        _micStream.add(event as List<int>);
+      }, onError: (event) {
+        print(event.toString());
+      });
       _streaming = true;
     }
-
-    await _methodChannel.invokeMethod('start');
-
-    yield* (_parseStream(_eventStream));
   }
 
-  void pause() async {
+  Future<Stream<List<int>>> start(
+      {AudioSource audioSource: AudioSource.CURRENT,
+      int sampleRate: 0,
+      ChannelConfig channelConfig: ChannelConfig.CURRENT,
+      AudioResolution audioResolution: AudioResolution.CURRENT}) async {
+    await _setupAndBackgroundStart(
+        audioSource, sampleRate, channelConfig, audioResolution);
+    await _methodChannel.invokeMethod('start');
+    return _micStream.stream;
+  }
+
+  Future<void> pause() async {
     if (streaming) {
       await _methodChannel.invokeMethod('pause');
     }
   }
 
-  Future<bool> get paused  => _methodChannel.invokeMethod('isPaused');
-  Future<bool> get recording  => _methodChannel.invokeMethod('isRecording');
-  Future<bool> get active  => _methodChannel.invokeMethod('isActive');
+  Future<bool> get paused => _methodChannel.invokeMethod('isPaused');
+  Future<bool> get recording => _methodChannel.invokeMethod('isRecording');
+  Future<bool> get active => _methodChannel.invokeMethod('isActive');
 
-  void resume() async {
+  Future<void> resume() async {
+    if (_eventStream == null || _eventStreamSubscription == null) {
+      await start();
+    }
     if (streaming) {
       await _methodChannel.invokeMethod('resume');
     }
   }
 
-  void stop() async {
+  Future<void> stop() async {
     if (streaming) {
       await _methodChannel.invokeMethod('stop');
+      if (_eventStreamSubscription != null) {
+        _eventStreamSubscription.cancel();
+        _eventStreamSubscription = null;
+        _eventStream = null;
+      }
     }
+    _streaming = false;
   }
 
-  Stream<List<int>> _parseStream(Stream<List<dynamic>> micData) {
-    return micData.map((List<dynamic> i) => i as List<int>);
-  }
 }
