@@ -15,15 +15,16 @@ import io.flutter.plugin.common.PluginRegistry;
 
 /**
  * Handle method calls from dart code.
+ *
  * @author Alexandre Machado
  */
 public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHandler {
 
-    static final String[] setupMicrophoneArguments = { "source", "sampleRate", "channelConfig", "audioResolution"};
+    static final String[] setupMicrophoneArguments = {"source", "sampleRate", "channelConfig", "audioResolution"};
 
-    static final int[] RATES_8K = { 8000, 4000, 2666, 2000, 1600, 1333, 1142, 1000  };
-    static final int[] RATES_16K = { 16000, 5333, 3200, 2285 };
-    static final int[] RATES_44K = { 44100, 22050, 14700, 11025, 8820, 7350, 6300, 5512, 2756, 1838, 1102, 918 };
+    static final int[] RATES_8K = {8000, 4000, 2666, 2000, 1600, 1333, 1142, 1000};
+    static final int[] RATES_16K = {16000, 5333, 3200, 2285};
+    static final int[] RATES_44K = {44100, 22050, 14700, 11025, 8820, 7350, 6300, 5512, 2756, 1838, 1102, 918};
 
     private MicrophoneController microphoneController;
 
@@ -32,7 +33,7 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
     }
 
     protected boolean inArray(int[] array, int v) {
-        for (int x: array) {
+        for (int x : array) {
             if (v == x) {
                 return true;
             }
@@ -43,11 +44,9 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
     protected int findSampleRate(int rate) {
         if (inArray(RATES_8K, rate)) {
             return 8000;
-        }
-        else if (inArray(RATES_16K,rate)) {
+        } else if (inArray(RATES_16K, rate)) {
             return 16000;
-        }
-        else if (inArray(RATES_44K,rate)) {
+        } else if (inArray(RATES_44K, rate)) {
             return 44100;
         }
         return -1;
@@ -65,19 +64,17 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
      */
     protected void setupMicrophone(MethodCall call, MethodChannel.Result result) {
 
-        int[] v = new int[4];
-        for (int i=0; i < 4; ++i) {
-            v[i] = call.hasArgument(setupMicrophoneArguments[i]) ? (int) call.argument(setupMicrophoneArguments[i]) : 0;
-        }
-
-        int source = v[0];
-        int sampleRate = findSampleRate(v[1]);
-        int divisor = findDownsamplingDivisor(v[1], sampleRate);
-        int channelConfig = v[2];
-        int audioResolution = v[3];
+        int intendedSampleRate = call.hasArgument("sampleRate") ? ((int) call.argument("sampleRate")) : MicrophoneController.SAMPLE_RATE;
+        int source = call.hasArgument("source") ? ((int) call.argument("source")) : 0;
+        int sampleRate = findSampleRate(intendedSampleRate);
+        int divisor = findDownsamplingDivisor(intendedSampleRate, sampleRate);
+        int channelConfig = call.hasArgument("channelConfig") ? ((int) call.argument("channelConfig")) : 0;
+        int audioResolution = call.hasArgument("audioResolution") ? ((int) call.argument("audioResolution")) : 0;
+        int fftBufferSize = call.hasArgument("fftSize") ? ((int) call.argument("fftSize")) : MicrophoneController.FFT_SIZE;
+        int sampleBufferSize = call.hasArgument("bufferSize") ? ((int) call.argument("bufferSize")) : MicrophoneController.BUFFER_SIZE;
 
         if (sampleRate < 0) {
-            result.error("InvalidSampleRate", "The requested sample rate (" + v[1] + " Hz) is not supported", null);
+            result.error("InvalidSampleRate", "The requested sample rate (" + sampleRate + " Hz) is not supported", null);
             return;
         }
 
@@ -86,6 +83,8 @@ public class AqueraInputMicMethodHandler implements MethodChannel.MethodCallHand
         microphoneController.setDivisor(divisor);
         microphoneController.setAudioChannelsFromDart(channelConfig);
         microphoneController.setAudioEncodingFromDart(audioResolution);
+        microphoneController.setFftBufferSize(fftBufferSize);
+        microphoneController.setDataFlowBufferSize(sampleBufferSize);
 
         result.success(null);
     }

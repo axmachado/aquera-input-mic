@@ -10,6 +10,9 @@ import android.media.audiofx.AutomaticGainControl;
 
 public class MicrophoneController {
 
+    public static final int BUFFER_SIZE = 4000;
+    public static final int FFT_SIZE = 4096;
+    public static final int SAMPLE_RATE = 8000;
     private static MicrophoneController instance;
 
     private Context appContext;
@@ -19,6 +22,8 @@ public class MicrophoneController {
     private int sampleRate;
     private int divisor;
     private int audioBufferSize;
+    private int dataFlowBufferSize;
+    private int fftBufferSize;
 
     private AudioRecord recorder;
 
@@ -26,10 +31,12 @@ public class MicrophoneController {
         audioSource = MediaRecorder.AudioSource.UNPROCESSED;
         audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
         audioChannels = AudioFormat.CHANNEL_IN_MONO;
-        sampleRate = 8000;
+        sampleRate = SAMPLE_RATE;
         divisor = 1;
         recorder = null;
         audioBufferSize = 0;
+        dataFlowBufferSize = BUFFER_SIZE;
+        fftBufferSize = FFT_SIZE;
     }
 
     public static MicrophoneController getInstance() {
@@ -245,5 +252,21 @@ public class MicrophoneController {
             divisor = 1;
         }
         this.divisor = divisor;
+    }
+
+    public int getDataFlowBufferSize() {
+        return dataFlowBufferSize;
+    }
+
+    public void setDataFlowBufferSize(int dataFlowBufferSize) {
+        this.dataFlowBufferSize = dataFlowBufferSize;
+    }
+
+    public int getFftBufferSize() {
+        return fftBufferSize;
+    }
+
+    public void setFftBufferSize(int fftBufferSize) {
+        this.fftBufferSize = fftBufferSize;
     }
 }

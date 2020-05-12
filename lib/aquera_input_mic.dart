@@ -1,4 +1,4 @@
-cimport 'dart:async';
+import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:permission/permission.dart';
@@ -37,6 +37,12 @@ class InvalidStateException implements Exception {
   }
 }
 
+class FrequencyPoint {
+  final double frequency;
+  final double dbs;
+  FrequencyPoint(this.frequency, this.dbs);
+}
+
 /*
  * Microphone input controller class 
  * 
@@ -54,7 +60,7 @@ class AqueraInputMic {
   AudioResolution _audioResolution;
   int _sampleRate;
   bool _streaming;
-  StreamController<List<int>> _micStream;
+  StreamController<FrequencyPoint> _micStream;
   StreamSubscription<dynamic> _eventStreamSubscription;
 
   // Event stream
@@ -78,7 +84,7 @@ class AqueraInputMic {
     _audioResolution = AudioResolution.PCM_16BIT;
     _sampleRate = 8000; // 8KHz as default sample rate
     _streaming = false;
-    _micStream = new StreamController<List<int>>();
+    _micStream = new StreamController<FrequencyPoint>();
     _eventStreamSubscription = null;
   }
 
@@ -146,8 +152,13 @@ class AqueraInputMic {
     return version;
   }
 
-  Future<void> _setupAndBackgroundStart(AudioSource audioSource, int sampleRate,
-      ChannelConfig channelConfig, AudioResolution audioResolution) async {
+  Future<void> _setupAndBackgroundStart(
+      AudioSource audioSource,
+      int sampleRate,
+      ChannelConfig channelConfig,
+      AudioResolution audioResolution,
+      int fftSize,
+      int bufferSize) async {
     if (streaming) {
       throw InvalidStateException("Already streaming");
     }
@@ -172,14 +183,19 @@ class AqueraInputMic {
         'audioResolution': (audioResolution == AudioResolution.CURRENT
                 ? this.audioResolution
                 : audioResolution)
-            .index
+            .index,
+        'fftSize': fftSize,
+        'bufferSize': bufferSize
       });
 
       if (_eventStream == null) {
         _eventStream = _eventChannel.receiveBroadcastStream();
       }
       _eventStreamSubscription = _eventStream.listen((event) {
-        _micStream.add(event as List<int>);
+        List<double> b = (event as List<double>);
+        double freq = b[0];
+        double dbs = b[1];
+        _micStream.add(FrequencyPoint(freq, dbs));
       }, onError: (event) {
         print(event.toString());
       });
@@ -187,14 +203,20 @@ class AqueraInputMic {
     }
   }
 
-  Future<Stream<List<int>>> start(
+  Future<Stream<FrequencyPoint>> start(
       {AudioSource audioSource: AudioSource.CURRENT,
       int sampleRate: 0,
       ChannelConfig channelConfig: ChannelConfig.CURRENT,
-      AudioResolution audioResolution: AudioResolution.CURRENT}) async {
-    await _setupAndBackgroundStart(
-        audioSource, sampleRate, channelConfig, audioResolution);
-    await _methodChannel.invokeMethod('start');
+      AudioResolution audioResolution: AudioResolution.CURRENT,
+      int fftBufferSize: 4096,
+      int bufferSize: 4000}) async {
+
+    _micStream.close();
+    _micStream = new StreamController<FrequencyPoint>();
+
+    await _setupAndBackgroundStart(audioSource, sampleRate, channelConfig,
+        audioResolution, fftBufferSize, bufferSize);
+    await _methodChannel.invokeMethod('start');    
     return _micStream.stream;
   }
 
@@ -228,5 +250,4 @@ class AqueraInputMic {
     }
     _streaming = false;
   }
-
 }

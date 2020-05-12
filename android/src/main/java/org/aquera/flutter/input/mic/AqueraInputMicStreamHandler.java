@@ -6,7 +6,9 @@ package org.aquera.flutter.input.mic;
 
 import android.media.AudioFormat;
 import android.media.AudioRecord;
+import android.speech.tts.Voice;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import io.flutter.plugin.common.EventChannel;
@@ -30,6 +32,10 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
      * Signal that the listener disconnected from the stream and the background thread should finalize.
      */
     private boolean listenerGone;
+    /**
+     * Voice analysis processor
+     */
+    private VoiceAnalysis va;
 
     public AqueraInputMicStreamHandler(MicrophoneController microphoneController) {
         microphone = microphoneController;
@@ -49,6 +55,13 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
             microphone.pause();
         }
         listenerGone = true;
+    }
+
+    public void sendFrequencyPoint(double frequency, double dbs) {
+        double[]  point = new double[2];
+        point[0] = frequency;
+        point[1] = dbs;
+        eventSink.success(point);
     }
 
     /**
@@ -90,8 +103,7 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
                 result[j] = (int) Math.round(result[j] * 1.0 / microphone.getDivisor());
                 j++;
             }
-
-            eventSink.success(result);
+            va.samplesReceived(result);
         }
 
     }
@@ -126,7 +138,8 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
             microphone.getRecorder().read(input, 0, sample_count, AudioRecord.READ_BLOCKING);
 
             int j = 0;
-            for (int i=0; i < sample_count; i+=microphone.getDivisor()) {
+            int limit = result.length * microphone.getDivisor();
+            for (int i=0; i < limit; i+=microphone.getDivisor()) {
                 result[j] = 0;
                 for (int k = 0; k < microphone.getDivisor(); ++k) {
                     result[j] += input[i+k];
@@ -134,8 +147,7 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
                 result[j] = (int) Math.round(result[j] * 1.0 / microphone.getDivisor());
                 j++;
             }
-
-            eventSink.success(result);
+            va.samplesReceived(result);
         }
 
     }
@@ -145,6 +157,8 @@ public class AqueraInputMicStreamHandler implements EventChannel.StreamHandler, 
      * correct loop to convert the data.
      */
     public void run() {
+        va = new VoiceAnalysis(microphone.getFftBufferSize(), microphone.getDataFlowBufferSize(),
+                microphone.getSampleRate()/microphone.getDivisor(), this);
         switch (microphone.getAudioEncoding()) {
             case AudioFormat.ENCODING_PCM_8BIT:
                 run_8bit();
