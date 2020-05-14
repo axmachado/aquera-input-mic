@@ -41,6 +41,8 @@ class FrequencyPoint {
   final double frequency;
   final double dbs;
   FrequencyPoint(this.frequency, this.dbs);
+
+  String get formated => frequency.toStringAsFixed(12) + ' ' + dbs.toStringAsFixed(12);
 }
 
 /*
