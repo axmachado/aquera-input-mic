@@ -50,7 +50,7 @@ public class VoiceAnalysis {
                 }
             }
         }
-        dbs = 2 * Math.log10(dbs);
+        dbs = 1.5 * Math.log10(dbs);
         if (freq > 0) {
             emitFrequencyPoint(freq, dbs);
         }
