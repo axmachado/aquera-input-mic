@@ -170,14 +170,14 @@ class _MyHomePageState extends State<MyHomePage> {
         var noisePointsCounter = noiseSamples / bufferSize;
         var noiseAvg = _noiseDbSum / noisePointsCounter;
         var estimate1 = _noiseMinDb - (_noiseMaxDb - _noiseMinDb);
-        var estimate2 = noiseAvg - 2 * (_noiseMaxDb - noiseAvg);
+        var estimate2 = noiseAvg - .5 * (noiseAvg - _noiseMinDb);
         print(
-            "Calculating noise level: MinDb $_noiseMinDb, MaxDb: $_noiseMaxDb, AVG: $noiseAvg");
+            "Calculating noise level: MinDb $_noiseMinDb, MaxDb: $_noiseMaxDb, AVG: $noiseAvg, EST1: $estimate1, EST2: $estimate2");
         noiseLevel = estimate2 > estimate1 ? estimate2 : estimate1;
         print("Noise level set to $noiseLevel");
       }
     } else {
-      // filter out anything bellow 30Hz
+      // filter out anything bellow 15Hz
       // repeated values
       // and anything below noise level
       print("noise level: " +
@@ -187,7 +187,7 @@ class _MyHomePageState extends State<MyHomePage> {
           "Hz " +
           point.dbs.toStringAsFixed(2) +
           'dB');
-      if (point.frequency > 30 && diff > 0.0001 && point.dbs >= noiseLevel) {
+      if (point.frequency > 15 && diff > 0.0001 && point.dbs >= noiseLevel) {
         for (var i = 0; i < 4; ++i) {
           points[i] = points[i + 1];
         }
@@ -372,6 +372,8 @@ class _MyHomePageState extends State<MyHomePage> {
                 DropdownButton(
                     value: fftPoints,
                     items: [
+                      DropdownMenuItem(value: 32768, child: new Text("32K")),
+                      DropdownMenuItem(value: 16384, child: new Text("16K")),
                       DropdownMenuItem(value: 8192, child: new Text("8K")),
                       DropdownMenuItem(value: 4096, child: new Text("4K")),
                       DropdownMenuItem(value: 2048, child: new Text("2K")),
