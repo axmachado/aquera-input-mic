@@ -5,6 +5,8 @@ public class VoiceAnalysis {
 
     private double[] fftBuffer;
     private int bufferSize;
+    private int cursorStart;
+    private int cursorEnd;
     private int cursor;
     private double freqBin;
     private double binOffset;
@@ -12,14 +14,24 @@ public class VoiceAnalysis {
     AqueraInputMicStreamHandler streamHandler;
 
     public VoiceAnalysis(int fftSize, int bufferSize, int sampleFrequency, AqueraInputMicStreamHandler streamHandler) {
+        if (fftSize < bufferSize) {
+            fftSize = bufferSize;
+        }
         this.fftBuffer = new double[fftSize];
         this.bufferSize = bufferSize;
-        this.cursor = fftSize - bufferSize;
+        this.cursorStart = (fftSize/2) - (bufferSize/2);
+        if (cursorStart < 0) {
+            cursorStart = 0;
+        }
+        this.cursorEnd = this.cursorStart + bufferSize;
+        this.cursor = this.cursorStart;
+
         this.streamHandler = streamHandler;
         freqBin = (sampleFrequency / 2.0) / (fftSize/2);
         binOffset = freqBin/2;
         lastFrequencyPoint = 0;
     }
+
 
     public void emitFrequencyPoint(double frequency, double dbs) {
         streamHandler.sendFrequencyPoint(frequency, dbs);
@@ -28,8 +40,8 @@ public class VoiceAnalysis {
 
     protected double[] meanSquareRoot(double[] data) {
         double[] result = new double[data.length];
-        double normFactor = 1.0/Math.sqrt(data.length);
-        for (int i = 0; i < data.length; ++i) {
+        double normFactor = 1.0/Math.sqrt(this.bufferSize);
+        for (int i = this.cursorStart; i < this.cursorEnd; ++i) {
             result[i] = data[i] * normFactor;
         }
         return result;
@@ -50,30 +62,24 @@ public class VoiceAnalysis {
                 }
             }
         }
-        dbs = 1.5 * Math.log10(dbs);
+        dbs = 2.5 * Math.log10(dbs);
         if (freq > 0) {
             emitFrequencyPoint(freq, dbs);
         }
     }
 
     public void shiftFFTBuffer() {
-        int count = fftBuffer.length - bufferSize;
-        for (int i = 0, j = bufferSize; i < count; ++i, ++j) {
-            //fftBuffer[i] = fftBuffer[j];
-            fftBuffer[0] = 0;
-        }
-        cursor = count;
+        cursor = this.cursorStart;
     }
 
     public void samplesReceived(int[] samples) {
         for (int i = 0; i < samples.length; ++i) {
             fftBuffer[cursor] = (double) samples[i];
             cursor++;
-            if (cursor >= fftBuffer.length) {
+            if (cursor >= this.cursorEnd) {
                 processFFTBuffer();
                 shiftFFTBuffer();
             }
         }
     }
-
 }
